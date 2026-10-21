@@ -300,7 +300,10 @@ function registerBrowser(ws, message) {
   }
 
   sockets.add(ws);
-  browserMeta.set(ws, { userId, userName, lastSeen: Date.now() });
+  const clientId = typeof message.clientId === 'string' && message.clientId.trim()
+    ? message.clientId.trim()
+    : null;
+  browserMeta.set(ws, { userId, userName, clientId, lastSeen: Date.now() });
 
   send(ws, { type: 'registered', userId });
   send(ws, { type: 'app_list', apps: listApps() });
@@ -385,23 +388,61 @@ function routeBrowserMessage(ws, message, meta = browserMeta.get(ws)) {
     return;
   }
 
-  const plugin = plugins.get(appId);
-
-  if (!plugin || plugin.ws.readyState !== WebSocket.OPEN) {
-    send(ws, { type: 'error', error: `app is unavailable: ${appId}`, appId });
-    return;
-  }
-
   const messageId = typeof message.messageId === 'string' && message.messageId.trim()
     ? message.messageId
     : createMessageId('user');
 
-  appendHistory({
+  // 幂等：同一 messageId 重复到达时不重复落库，也不重复派发给 Agent
+  const existing = findHistoryMessage(meta.userId, appId, messageId);
+
+  if (existing) {
+    if (existing.from === 'user' && existing.content === content) {
+      // 重放：重新广播同一条规范消息作为确认
+      broadcastToUserBrowsers(meta.userId, {
+        type: 'message',
+        from: 'user',
+        appId,
+        content: existing.content,
+        messageId: existing.messageId,
+        timestamp: existing.timestamp,
+        clientId: meta.clientId,
+      });
+      return;
+    }
+
+    send(ws, {
+      type: 'error',
+      error: 'duplicate_message_id_conflict',
+      appId,
+      messageId,
+    });
+    return;
+  }
+
+  const plugin = plugins.get(appId);
+
+  if (!plugin || plugin.ws.readyState !== WebSocket.OPEN) {
+    send(ws, { type: 'error', error: `app is unavailable: ${appId}`, appId, messageId });
+    return;
+  }
+
+  const saved = appendHistory({
     userId: meta.userId,
     appId,
     from: 'user',
     content,
     messageId,
+  });
+
+  // 同步给该用户的所有浏览器（包含发送端，发送端按 messageId 合并）
+  broadcastToUserBrowsers(meta.userId, {
+    type: 'message',
+    from: 'user',
+    appId,
+    content: saved.content,
+    messageId: saved.messageId,
+    timestamp: saved.timestamp,
+    clientId: meta.clientId,
   });
 
   send(plugin.ws, {
@@ -478,9 +519,10 @@ function routePluginOutgoing(ws, message) {
     appId: meta.appId,
     content,
     messageId,
+    timestamp: Date.now(),
   };
 
-  appendHistory({
+  const saved = appendHistory({
     userId,
     appId: meta.appId,
     from: 'agent',
@@ -488,14 +530,13 @@ function routePluginOutgoing(ws, message) {
     messageId,
   });
 
-  const sockets = browsers.get(userId);
-  if (!sockets) return;
+  outbound.content = saved.content;
+  outbound.messageId = saved.messageId;
+  outbound.timestamp = saved.timestamp;
 
-  for (const browser of sockets) {
-    send(browser, outbound);
-  }
+  broadcastToUserBrowsers(userId, outbound);
 
-  send(ws, { type: 'delivery_ack', ok: true, userId, messageId });
+  send(ws, { type: 'delivery_ack', ok: true, userId, messageId: saved.messageId });
 }
 
 function removeBrowser(ws) {
@@ -526,6 +567,27 @@ function historyKey(userId, appId) {
   return JSON.stringify([userId, appId]);
 }
 
+function findHistoryMessage(userId, appId, messageId) {
+  if (!messageId) return null;
+  const messages = messageHistory.get(historyKey(userId, appId));
+  if (!messages) return null;
+  return messages.find((message) => message.messageId === messageId) || null;
+}
+
+function broadcastToUserBrowsers(userId, message) {
+  const sockets = browsers.get(userId);
+  if (!sockets) return 0;
+
+  let delivered = 0;
+  for (const browser of sockets) {
+    send(browser, message);
+    delivered += 1;
+  }
+
+  return delivered;
+}
+
+// 返回实际写入的规范消息对象；调用方用它统一广播与历史字段
 function appendHistory({ userId, appId, from, content, messageId }) {
   const key = historyKey(userId, appId);
   const messages = messageHistory.get(key) || [];
@@ -553,6 +615,8 @@ function appendHistory({ userId, appId, from, content, messageId }) {
 
   messageHistory.set(key, messages);
   persistMessage(newMsg);
+
+  return newMsg;
 }
 
 function getHistoryForUser(userId) {

@@ -2,6 +2,7 @@ const state = {
   ws: null,
   userId: '',
   userName: '',
+  clientId: '',
   apps: [],
   activeAppId: null,
   messages: {},
@@ -32,9 +33,13 @@ function connectWebSocket(userId, userName) {
   const ws = new WebSocket(`${protocol}//${location.host}/ws`);
   state.ws = ws;
 
+  if (!state.clientId) {
+    state.clientId = createClientId();
+  }
+
   ws.addEventListener('open', () => {
     state.reconnectDelay = 3000;
-    ws.send(JSON.stringify({ type: 'register', userId, userName }));
+    ws.send(JSON.stringify({ type: 'register', userId, userName, clientId: state.clientId }));
   });
 
   ws.addEventListener('message', async (event) => {
@@ -94,8 +99,27 @@ function handleServerMessage(data) {
   if (data.type === 'message') {
     const appId = data.appId || '';
     if (!appId || typeof data.content !== 'string') return;
-    removeTypingIndicator(appId);
-    addMessage(appId, 'agent', data.content);
+
+    const role = data.from === 'user' ? 'user' : data.from === 'agent' ? 'agent' : null;
+    if (!role) {
+      console.warn('drop message with unknown from:', data.from);
+      return;
+    }
+
+    // 只有 agent 消息才代表回复结束；用户同步帧不得清除 typing
+    if (role === 'agent') {
+      removeTypingIndicator(appId);
+    }
+
+    upsertMessage(appId, {
+      messageId: typeof data.messageId === 'string' ? data.messageId : null,
+      role,
+      content: data.content,
+      timestamp: typeof data.timestamp === 'number' ? data.timestamp : Date.now(),
+      status: 'sent',
+      clientId: data.clientId,
+    });
+
     renderAgentList();
     return;
   }
@@ -118,13 +142,27 @@ function handleServerMessage(data) {
     const messages = data.messages && typeof data.messages === 'object' ? data.messages : {};
     for (const [appId, appMessages] of Object.entries(messages)) {
       if (!Array.isArray(appMessages)) continue;
-      state.messages[appId] = appMessages
+
+      const merged = appMessages
         .filter((message) => message && typeof message.content === 'string')
         .map((message) => ({
+          messageId: typeof message.messageId === 'string' ? message.messageId : null,
           role: message.from === 'user' || message.role === 'user' ? 'user' : 'agent',
           content: message.content,
           timestamp: typeof message.timestamp === 'number' ? message.timestamp : Date.now(),
+          status: 'sent',
+          clientId: null,
         }));
+
+      // 保留本地尚未确认的消息，避免刷新/重连后直接丢失
+      const localOnly = (state.messages[appId] || []).filter((item) => item.status !== 'sent' && item.messageId);
+      for (const item of localOnly) {
+        if (!merged.some((entry) => entry.messageId === item.messageId)) {
+          merged.push(item);
+        }
+      }
+
+      state.messages[appId] = merged;
     }
 
     renderAgentList();
@@ -136,6 +174,10 @@ function handleServerMessage(data) {
 
   if (data.type === 'error') {
     console.error('server error:', data.error || data);
+    if (data.messageId) {
+      markMessageFailed(data.appId, data.messageId);
+    }
+    return;
   }
 }
 
@@ -257,14 +299,54 @@ function renderMessages() {
   scrollMessagesToBottom();
 }
 
-function addMessage(appId, role, content) {
-  state.messages[appId] = state.messages[appId] || [];
-  state.messages[appId].push({ role, content, timestamp: Date.now() });
+function upsertMessage(appId, message, options = {}) {
+  const list = (state.messages[appId] = state.messages[appId] || []);
+  const messageId = typeof message.messageId === 'string' && message.messageId ? message.messageId : null;
+  const existing = messageId ? list.find((item) => item.messageId === messageId) : null;
+
+  if (existing) {
+    existing.role = message.role || existing.role;
+    if (typeof message.content === 'string') existing.content = message.content;
+    if (typeof message.timestamp === 'number') existing.timestamp = message.timestamp;
+    existing.status = message.status || existing.status;
+    if (message.clientId) existing.clientId = message.clientId;
+
+    if (state.activeAppId === appId && state.currentScreen === 'chat') {
+      renderMessages();
+    }
+    return { inserted: false, message: existing };
+  }
+
+  const entry = {
+    messageId,
+    role: message.role,
+    content: message.content,
+    timestamp: typeof message.timestamp === 'number' ? message.timestamp : Date.now(),
+    status: message.status || 'sent',
+    clientId: message.clientId || null,
+  };
+
+  list.push(entry);
 
   if (state.activeAppId === appId && state.currentScreen === 'chat') {
     renderMessages();
-  } else {
+  } else if (options.countUnread !== false) {
     state.unread[appId] = (state.unread[appId] || 0) + 1;
+  }
+
+  return { inserted: true, message: entry };
+}
+
+function markMessageFailed(appId, messageId) {
+  if (!appId || !messageId) return;
+  const list = state.messages[appId];
+  if (!list) return;
+  const target = list.find((item) => item.messageId === messageId);
+  if (!target) return;
+
+  target.status = 'failed';
+  if (state.activeAppId === appId && state.currentScreen === 'chat') {
+    renderMessages();
   }
 }
 
@@ -379,19 +461,49 @@ function sendMessage() {
   if (!text || !state.activeAppId) return;
 
   input.value = '';
-  addMessage(state.activeAppId, 'user', text);
-  renderAgentList();
+  const appId = state.activeAppId;
+  const messageId = createMessageId();
 
   if (!state.ws || state.ws.readyState !== WebSocket.OPEN) {
+    upsertMessage(appId, {
+      messageId,
+      role: 'user',
+      content: text,
+      timestamp: Date.now(),
+      status: 'failed',
+    }, { countUnread: false });
     console.error('websocket is not connected');
     return;
   }
 
+  upsertMessage(appId, {
+    messageId,
+    role: 'user',
+    content: text,
+    timestamp: Date.now(),
+    status: 'pending',
+  }, { countUnread: false });
+  renderAgentList();
+
   state.ws.send(JSON.stringify({
     type: 'message',
-    appId: state.activeAppId,
+    appId,
     content: text,
+    messageId,
+    clientId: state.clientId,
   }));
+}
+
+function createMessageId() {
+  if (globalThis.crypto && typeof globalThis.crypto.randomUUID === 'function') {
+    return globalThis.crypto.randomUUID();
+  }
+
+  return `m_${Date.now()}_${Math.random().toString(36).slice(2, 12)}`;
+}
+
+function createClientId() {
+  return `page_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
 function scheduleReconnect() {
