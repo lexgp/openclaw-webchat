@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="ru">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>管理后台 - WebChat</title>
+<title>Панель администрирования - WebChat</title>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   body {
@@ -128,30 +128,30 @@
 <body>
 
 <div class="topbar">
-  <h1>管理后台</h1>
-  <a href="#" onclick="showPasswordModal()" style="color:#1677ff">修改密码</a>
-  <button class="logout" onclick="logout()">退出登录</button>
+  <h1>Панель администрирования</h1>
+  <a href="#" onclick="showPasswordModal()" style="color:#1677ff">Изменить пароль</a>
+  <button class="logout" onclick="logout()">Выйти</button>
 </div>
 
 <div class="container">
   <div class="toolbar">
-    <button onclick="showCreateModal()">+ 创建 App</button>
+    <button onclick="showCreateModal()">+ Создать приложение</button>
   </div>
   <table>
     <thead>
       <tr>
         <th>App ID</th>
-        <th>名称</th>
+        <th>Название</th>
         <th>Secret</th>
-        <th>状态</th>
-        <th>连接</th>
-        <th>创建时间</th>
-        <th>操作</th>
+        <th>Статус</th>
+        <th>Подключение</th>
+        <th>Создано</th>
+        <th>Действия</th>
       </tr>
     </thead>
     <tbody id="appList"></tbody>
   </table>
-  <div class="empty" id="emptyState">暂无 App，点击上方按钮创建</div>
+  <div class="empty" id="emptyState">Нет приложений. Нажмите кнопку выше, чтобы создать</div>
 </div>
 
 <div class="toast" id="toast"></div>
@@ -159,12 +159,12 @@
 <!-- Create App Modal -->
 <div class="modal-overlay" id="createModal">
   <div class="modal">
-    <h2>创建 App</h2>
-    <label for="appName">Agent 展示名称</label>
-    <input type="text" id="appName" placeholder="例如：研发小虾" maxlength="64">
+    <h2>Создать приложение</h2>
+    <label for="appName">Отображаемое имя агента</label>
+    <input type="text" id="appName" placeholder="Например: DevBot" maxlength="64">
     <div class="actions">
-      <button onclick="closeModal('createModal')">取消</button>
-      <button class="primary" id="createBtn" onclick="createApp()">创建</button>
+      <button onclick="closeModal('createModal')">Отмена</button>
+      <button class="primary" id="createBtn" onclick="createApp()">Создать</button>
     </div>
   </div>
 </div>
@@ -172,8 +172,8 @@
 <!-- Secret Display Modal -->
 <div class="modal-overlay" id="secretModal">
   <div class="modal">
-    <h2>创建成功</h2>
-    <p style="font-size:14px;margin-bottom:12px">请立即复制保存以下信息，<strong>secret 仅在此显示一次</strong>。</p>
+    <h2>Создано</h2>
+    <p style="font-size:14px;margin-bottom:12px">Сразу скопируйте и сохраните данные ниже. <strong>Secret отображается только один раз</strong>.</p>
     <div class="secret-box">
       <div class="label">App ID</div>
       <div class="value" id="secretAppId"></div>
@@ -182,9 +182,9 @@
       <div class="label">Secret</div>
       <div class="value" id="secretValue"></div>
     </div>
-    <div class="secret-warning">⚠ 关闭后无法再次查看 secret</div>
+    <div class="secret-warning">⚠ После закрытия нельзя будет снова просмотреть secret</div>
     <div class="actions">
-      <button class="primary" onclick="closeSecretModal()">已复制，关闭</button>
+      <button class="primary" onclick="closeSecretModal()">Скопировано, закрыть</button>
     </div>
   </div>
 </div>
@@ -192,12 +192,12 @@
 <!-- Delete Confirmation Modal -->
 <div class="modal-overlay" id="deleteModal">
   <div class="modal">
-    <h2>确认删除</h2>
+    <h2>Подтвердить удаление</h2>
     <p id="deleteInfo" style="font-size:14px;margin-bottom:12px"></p>
-    <p style="font-size:13px;color:#888">已连接的 Plugin 不受影响，但下次重连将被拒绝。</p>
+    <p style="font-size:13px;color:#888">Уже подключённые плагины не пострадают, но при следующем подключении будут отклонены.</p>
     <div class="actions">
-      <button onclick="closeModal('deleteModal')">取消</button>
-      <button class="danger" onclick="confirmDeleteAction()">确认删除</button>
+      <button onclick="closeModal('deleteModal')">Отмена</button>
+      <button class="danger" onclick="confirmDeleteAction()">Удалить</button>
     </div>
   </div>
 </div>
@@ -205,11 +205,11 @@
 <!-- Disable Confirmation Modal -->
 <div class="modal-overlay" id="disableModal">
   <div class="modal">
-    <h2 id="disableTitle">确认操作</h2>
+    <h2 id="disableTitle">Подтвердить действие</h2>
     <p id="disableInfo" style="font-size:14px;margin-bottom:12px"></p>
     <div class="actions">
-      <button onclick="closeModal('disableModal')">取消</button>
-      <button class="primary" id="disableConfirmBtn" onclick="confirmToggle()">确认</button>
+      <button onclick="closeModal('disableModal')">Отмена</button>
+      <button class="primary" id="disableConfirmBtn" onclick="confirmToggle()">Подтвердить</button>
     </div>
   </div>
 </div>
@@ -217,22 +217,22 @@
 <!-- Change Password Modal -->
 <div class="modal-overlay" id="passwordModal">
   <div class="modal">
-    <h2>修改密码</h2>
+    <h2>Изменить пароль</h2>
     <div style="margin-bottom:12px">
-      <label for="oldPassword">旧密码</label>
-      <input type="password" id="oldPassword" placeholder="输入旧密码">
+      <label for="oldPassword">Текущий пароль</label>
+      <input type="password" id="oldPassword" placeholder="Введите текущий пароль">
     </div>
     <div style="margin-bottom:12px">
-      <label for="newPassword">新密码</label>
-      <input type="password" id="newPassword" placeholder="输入新密码（至少 6 位）">
+      <label for="newPassword">Новый пароль</label>
+      <input type="password" id="newPassword" placeholder="Введите новый пароль (минимум 6 символов)">
     </div>
     <div style="margin-bottom:12px">
-      <label for="confirmPassword">确认新密码</label>
-      <input type="password" id="confirmPassword" placeholder="再次输入新密码">
+      <label for="confirmPassword">Повторите новый пароль</label>
+      <input type="password" id="confirmPassword" placeholder="Введите новый пароль ещё раз">
     </div>
     <div class="actions">
-      <button onclick="closeModal('passwordModal')">取消</button>
-      <button class="primary" onclick="changePassword()">确认修改</button>
+      <button onclick="closeModal('passwordModal')">Отмена</button>
+      <button class="primary" onclick="changePassword()">Изменить</button>
     </div>
   </div>
 </div>
@@ -307,7 +307,7 @@ async function loadApps() {
     const data = await adminFetch('/api/admin/apps');
     renderTable(data.apps || []);
   } catch (e) {
-    showToast('加载失败: ' + e.message, 'error');
+    showToast('Ошибка загрузки: ' + e.message, 'error');
   }
 }
 
@@ -329,16 +329,16 @@ function renderTable(apps) {
     return `<tr>
       <td class="app-id">${escHtml(app.appId)}</td>
       <td>${escHtml(app.name)}</td>
-      <td>${app.secret ? `<span class="secret-cell" onclick="copySecret(this,'${escHtml(app.secret)}')" title="点击复制">${escHtml(app.secret)}</span>` : '-'}</td>
-      <td><span class="badge ${enabled ? 'on' : 'off'}">${enabled ? '启用' : '禁用'}</span></td>
-      <td><span class="badge ${connected ? 'connected' : 'disconnected'}">${connected ? '已连接' : '未连接'}</span></td>
+      <td>${app.secret ? `<span class="secret-cell" onclick="copySecret(this,'${escHtml(app.secret)}')" title="Нажмите, чтобы скопировать">${escHtml(app.secret)}</span>` : '-'}</td>
+      <td><span class="badge ${enabled ? 'on' : 'off'}">${enabled ? 'Активно' : 'Отключено'}</span></td>
+      <td><span class="badge ${connected ? 'connected' : 'disconnected'}">${connected ? 'Подключено' : 'Не подключено'}</span></td>
       <td>${createdAt}</td>
       <td class="actions">
         ${enabled
-          ? `<button class="toggle" onclick="confirmDisable('${app.appId}','${escHtml(app.name)}')">禁用</button>`
-          : `<button class="toggle disabled" onclick="enableApp('${app.appId}')">启用</button>`
+          ? `<button class="toggle" onclick="confirmDisable('${app.appId}','${escHtml(app.name)}')">Отключить</button>`
+          : `<button class="toggle disabled" onclick="enableApp('${app.appId}')">Включить</button>`
         }
-        <button class="delete" onclick="confirmDelete('${app.appId}','${escHtml(app.name)}')">删除</button>
+        <button class="delete" onclick="confirmDelete('${app.appId}','${escHtml(app.name)}')">Удалить</button>
       </td>
     </tr>`;
   }).join('');
@@ -347,7 +347,7 @@ function renderTable(apps) {
 function formatDate(iso) {
   try {
     const d = new Date(iso);
-    return d.toLocaleString('zh-CN', {
+    return d.toLocaleString('ru-RU', {
       year: 'numeric', month: '2-digit', day: '2-digit',
       hour: '2-digit', minute: '2-digit',
     });
@@ -371,9 +371,9 @@ async function createApp() {
   const btn = document.getElementById('createBtn');
   if (btn.disabled) return;
   btn.disabled = true;
-  btn.textContent = '创建中...';
+  btn.textContent = 'Создание…';
   const name = document.getElementById('appName').value.trim();
-  if (!name) { showToast('请输入 App 名称', 'error'); return; }
+  if (!name) { showToast('Введите название приложения', 'error'); return; }
 
   try {
     const data = await adminFetch('/api/admin/apps', {
@@ -387,10 +387,10 @@ async function createApp() {
     document.getElementById('secretValue').textContent = data.secret;
     openModal('secretModal');
   } catch (e) {
-    showToast('创建失败: ' + e.message, 'error');
+    showToast('Ошибка создания: ' + e.message, 'error');
   } finally {
     btn.disabled = false;
-    btn.textContent = '创建';
+    btn.textContent = 'Создать';
   }
 }
 
@@ -400,7 +400,7 @@ let deleteTarget = null;
 
 function confirmDelete(appId, name) {
   deleteTarget = { appId, name };
-  document.getElementById('deleteInfo').textContent = '确定要删除 App「' + name + '」(ID: ' + appId + ') 吗？';
+  document.getElementById('deleteInfo').textContent = 'Удалить приложение «' + name + '» (ID: ' + appId + ')?';
   openModal('deleteModal');
 }
 
@@ -411,10 +411,10 @@ async function confirmDeleteAction() {
     await adminFetch('/api/admin/apps/' + deleteTarget.appId, { method: 'DELETE' });
     closeModal('deleteModal');
     deleteTarget = null;
-    showToast('删除成功');
+    showToast('Удалено');
     loadApps();
   } catch (e) {
-    showToast('删除失败: ' + e.message, 'error');
+    showToast('Ошибка удаления: ' + e.message, 'error');
   }
 }
 
@@ -426,9 +426,9 @@ let toggleNewState = null;
 function confirmDisable(appId, name) {
   toggleTarget = { appId, name };
   toggleNewState = false;
-  document.getElementById('disableTitle').textContent = '确认禁用';
-  document.getElementById('disableInfo').textContent = '确定要禁用 App「' + name + '」(ID: ' + appId + ') 吗？已连接的 Plugin 不受影响，但新的连接将被拒绝。';
-  document.getElementById('disableConfirmBtn').textContent = '确认禁用';
+  document.getElementById('disableTitle').textContent = 'Подтвердить отключение';
+  document.getElementById('disableInfo').textContent = 'Отключить приложение «' + name + '» (ID: ' + appId + ')? Уже подключённые плагины не пострадают, но новые подключения будут отклонены.';
+  document.getElementById('disableConfirmBtn').textContent = 'Отключить';
   document.getElementById('disableConfirmBtn').className = 'danger';
   openModal('disableModal');
 }
@@ -439,10 +439,10 @@ async function enableApp(appId) {
       method: 'PATCH',
       body: JSON.stringify({ enabled: true }),
     });
-    showToast('已启用');
+    showToast('Включено');
     loadApps();
   } catch (e) {
-    showToast('操作失败: ' + e.message, 'error');
+    showToast('Ошибка операции: ' + e.message, 'error');
   }
 }
 
@@ -455,11 +455,11 @@ async function confirmToggle() {
       body: JSON.stringify({ enabled: toggleNewState }),
     });
     closeModal('disableModal');
-    showToast(toggleNewState ? '已启用' : '已禁用');
+    showToast(toggleNewState ? 'Включено' : 'Отключено');
     toggleTarget = null;
     loadApps();
   } catch (e) {
-    showToast('操作失败: ' + e.message, 'error');
+    showToast('Ошибка операции: ' + e.message, 'error');
   }
 }
 
@@ -477,10 +477,10 @@ async function changePassword() {
   const newPw = document.getElementById('newPassword').value;
   const confirmPw = document.getElementById('confirmPassword').value;
 
-  if (!oldPw) { showToast('请输入旧密码', 'error'); return; }
-  if (!newPw) { showToast('请输入新密码', 'error'); return; }
-  if (newPw.length < 6) { showToast('新密码至少 6 位', 'error'); return; }
-  if (newPw !== confirmPw) { showToast('两次输入的新密码不一致', 'error'); return; }
+  if (!oldPw) { showToast('Введите текущий пароль', 'error'); return; }
+  if (!newPw) { showToast('Введите новый пароль', 'error'); return; }
+  if (newPw.length < 6) { showToast('Пароль должен содержать минимум 6 символов', 'error'); return; }
+  if (newPw !== confirmPw) { showToast('Пароли не совпадают', 'error'); return; }
 
   try {
     await adminFetch('/api/admin/password', {
@@ -488,9 +488,9 @@ async function changePassword() {
       body: JSON.stringify({ oldPassword: oldPw, newPassword: newPw }),
     });
     closeModal('passwordModal');
-    showToast('密码修改成功');
+    showToast('Пароль изменён');
   } catch (e) {
-    showToast('修改失败: ' + e.message, 'error');
+    showToast('Ошибка изменения пароля: ' + e.message, 'error');
   }
 }
 
@@ -500,7 +500,7 @@ async function copySecret(el, secret) {
   try {
     await navigator.clipboard.writeText(secret);
     el.classList.add('copied');
-    el.textContent = '✓ 已复制';
+    el.textContent = '✓ Скопировано';
     setTimeout(() => {
       el.classList.remove('copied');
       el.textContent = secret;
@@ -516,7 +516,7 @@ async function copySecret(el, secret) {
     document.execCommand('copy');
     document.body.removeChild(ta);
     el.classList.add('copied');
-    el.textContent = '✓ 已复制';
+    el.textContent = '✓ Скопировано';
     setTimeout(() => {
       el.classList.remove('copied');
       el.textContent = secret;

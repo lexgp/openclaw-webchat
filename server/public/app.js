@@ -16,6 +16,13 @@ const state = {
 
 const LAST_USER_ID_STORAGE_KEY = 'webchat.lastUserId';
 
+const md = window.markdownit({
+  html: false,
+  linkify: true,
+  typographer: true,
+  breaks: true,
+});
+
 function connectWebSocket(userId, userName) {
   if (state.ws) {
     state.ws.skipReconnect = true;
@@ -106,7 +113,7 @@ function handleServerMessage(data) {
       return;
     }
 
-    // 只有 agent 消息才代表回复结束；用户同步帧不得清除 typing
+    // Только сообщение от agent означает завершение ответа; кадры синхронизации пользователя не должны сбрасывать typing
     if (role === 'agent') {
       removeTypingIndicator(appId);
     }
@@ -154,7 +161,7 @@ function handleServerMessage(data) {
           clientId: null,
         }));
 
-      // 保留本地尚未确认的消息，避免刷新/重连后直接丢失
+      // Сохраняем локальные сообщения, ещё не подтверждённые сервером, чтобы не потерять их при обновлении/переподключении
       const localOnly = (state.messages[appId] || []).filter((item) => item.status !== 'sent' && item.messageId);
       for (const item of localOnly) {
         if (!merged.some((entry) => entry.messageId === item.messageId)) {
@@ -209,7 +216,7 @@ function renderAgentList() {
   if (state.apps.length === 0) {
     const empty = document.createElement('div');
     empty.className = 'empty-state';
-    empty.textContent = '暂无可用 Agent';
+    empty.textContent = 'Нет доступных агентов';
     list.appendChild(empty);
     return;
   }
@@ -242,8 +249,8 @@ function renderAgentList() {
     const preview = document.createElement('div');
     preview.className = 'agent-preview';
     preview.textContent = lastMessage
-      ? `${lastMessage.role === 'user' ? '我' : name}: ${lastMessage.content}`
-      : '新对话';
+      ? `${lastMessage.role === 'user' ? 'Я' : name}: ${lastMessage.content}`
+      : 'Новый диалог';
 
     info.append(title, id, preview);
     card.append(avatar, info);
@@ -284,7 +291,11 @@ function renderMessages() {
 
     const bubble = document.createElement('div');
     bubble.className = 'message-bubble';
-    bubble.textContent = message.content;
+    if (message.role === 'agent') {
+      bubble.innerHTML = md.render(message.content);
+    } else {
+      bubble.textContent = message.content;
+    }
 
     const time = document.createElement('div');
     time.className = 'message-time';
@@ -364,7 +375,7 @@ function addTypingIndicator(appId) {
       }
     }, 150),
     timeoutTimer: window.setTimeout(() => {
-      showTypingError(appId, '回复超时，请稍后再试');
+      showTypingError(appId, 'Превышено время ожидания ответа');
     }, 120000),
   };
 
@@ -393,7 +404,7 @@ function showTypingError(appId, error) {
   state.typing[appId] = {
     kind: 'error',
     startedAt: Date.now(),
-    error: typeof error === 'string' && error.trim() ? error : '回复失败',
+    error: typeof error === 'string' && error.trim() ? error : 'Ошибка ответа',
     visible: true,
     showTimer: null,
     timeoutTimer: null,
@@ -410,7 +421,7 @@ function renderTypingIndicator(list, appId) {
 
   const row = document.createElement('div');
   row.className = `message agent typing ${typing.kind === 'error' ? 'typing-error' : ''}`;
-  row.setAttribute('aria-label', typing.kind === 'error' ? '回复出错' : '对方正在输入');
+  row.setAttribute('aria-label', typing.kind === 'error' ? 'Ошибка ответа' : 'Собеседник печатает');
 
   const content = document.createElement('div');
   content.className = 'message-content';
@@ -419,7 +430,7 @@ function renderTypingIndicator(list, appId) {
   bubble.className = 'message-bubble';
 
   if (typing.kind === 'error') {
-    bubble.textContent = typing.error || '回复失败';
+    bubble.textContent = typing.error || 'Ошибка ответа';
   } else {
     const dots = document.createElement('span');
     dots.className = 'typing-dots';
@@ -573,7 +584,7 @@ function getAvatarText(name) {
 }
 
 function formatTime(timestamp) {
-  return new Date(timestamp).toLocaleTimeString('zh-CN', {
+  return new Date(timestamp).toLocaleTimeString('ru-RU', {
     hour: '2-digit',
     minute: '2-digit',
   });

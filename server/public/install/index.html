@@ -1,13 +1,13 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="ru">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>WebChat Plugin 接入指南</title>
+<title>Руководство по подключению плагина WebChat</title>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   body {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
     background: #f0f2f5; color: #333;
   }
   .topbar {
@@ -66,35 +66,35 @@
 <body>
 
 <div class="topbar">
-  <span class="title">WebChat Plugin 接入指南</span>
+  <span class="title">Руководство по подключению плагина WebChat</span>
   <span class="nav">
-    <a href="/">聊天页</a>
-    <a href="/admin/">管理后台</a>
+    <a href="/">Чат</a>
+    <a href="/admin/">Админка</a>
   </span>
 </div>
 
 <div class="container">
 
-<h1>WebChat Plugin 接入指南</h1>
+<h1>Руководство по подключению плагина WebChat</h1>
 
-<p>本指南帮助你在 OpenClaw Gateway 上安装并配置 WebChat Channel Plugin，接入浏览器聊天通道。</p>
+<p>Это руководство поможет установить и настроить WebChat Channel Plugin в OpenClaw Gateway для подключения браузерного чата.</p>
 
 <div class="prereq">
-  <strong>前置条件</strong><br>
-  已经准备好可用的 Chat Server 地址、<code>appId</code> 和 <code>secret</code>。
+  <strong>Предварительные условия</strong><br>
+  У вас уже должны быть готовы адрес Chat Server, <code>appId</code> и <code>secret</code>.
 </div>
 
 <div class="tip" id="autoServerUrl">
-  <strong>当前服务器</strong>：<span id="serverUrlDisplay">检测中...</span>
+  <strong>Текущий сервер</strong>: <span id="serverUrlDisplay">определяется…</span>
 </div>
 
-<h2>1. 安装 Plugin</h2>
-<p>在 OpenClaw Gateway 所在机器执行：</p>
+<h2>1. Установка плагина</h2>
+<p>Выполните на машине с OpenClaw Gateway:</p>
 <pre>openclaw plugins install openclaw-webchat-plugin</pre>
 
-<h2>2. 配置 openclaw.json</h2>
-<p>编辑 OpenClaw Gateway 配置文件 <code>~/.openclaw/openclaw.json</code>，在 <code>channels</code> 中添加 WebChat 配置。</p>
-<p>单 Agent 示例（不需要 bindings，走默认路由）：</p>
+<h2>2. Настройка openclaw.json</h2>
+<p>Отредактируйте конфигурационный файл OpenClaw Gateway <code>~/.openclaw/openclaw.json</code>: добавьте в раздел <code>channels</code> конфигурацию WebChat.</p>
+<p>Пример для одного агента (без bindings, используется маршрут по умолчанию):</p>
 <pre>{
   "channels": {
     "openclaw-webchat": {
@@ -110,31 +110,31 @@
   }
 }</pre>
 
-<h2>3. 配置说明</h2>
+<h2>3. Описание параметров</h2>
 <table>
-  <tr><th>配置项</th><th>说明</th></tr>
-  <tr><td><code>serverUrl</code></td><td>Chat Server 的 Plugin WebSocket 地址，通常以 <code>/plugin</code> 结尾。</td></tr>
-  <tr><td><code>appId</code></td><td>当前 WebChat App 的身份 ID。</td></tr>
-  <tr><td><code>secret</code></td><td>当前 WebChat App 的连接密钥，只应配置在 Gateway 侧。</td></tr>
-  <tr><td><code>bindings</code></td><td>多 Agent 时，将 WebChat account 绑定到对应 Agent。单 Agent 可省略。</td></tr>
+  <tr><th>Параметр</th><th>Описание</th></tr>
+  <tr><td><code>serverUrl</code></td><td>Адрес Plugin WebSocket Chat Server, обычно заканчивается на <code>/plugin</code>.</td></tr>
+  <tr><td><code>appId</code></td><td>Идентификатор данного WebChat App.</td></tr>
+  <tr><td><code>secret</code></td><td>Секретный ключ для подключения данного WebChat App. Должен храниться только на стороне Gateway.</td></tr>
+  <tr><td><code>bindings</code></td><td>При нескольких агентах связывают WebChat account с конкретным агентом. Для одного агента можно опустить.</td></tr>
 </table>
 
-<h2>4. 重启 Gateway</h2>
+<h2>4. Перезапуск Gateway</h2>
 <pre>openclaw gateway restart</pre>
 
-<h2>5. 验证</h2>
-<p>查看 Channel 状态：</p>
+<h2>5. Проверка</h2>
+<p>Посмотрите статус канала:</p>
 <pre>openclaw channels list</pre>
-<p>确认 <code>openclaw-webchat</code> 已安装、已配置并处于启用状态。</p>
+<p>Убедитесь, что <code>openclaw-webchat</code> установлен, настроен и включён.</p>
 
-<p>或者使用 probe 模式查看详细状态：</p>
+<p>Или используйте режим probe для подробного статуса:</p>
 <pre>openclaw channels status --probe</pre>
-<p>正常输出示例：</p>
+<p>Пример корректного вывода:</p>
 <div class="output-sample">WebChat dev-main: enabled, configured, running, dm:open, allow:*<br>WebChat dev-2nd: enabled, configured, running, dm:open, allow:*</div>
-<p>关键状态说明：<code>enabled</code>（已启用）、<code>configured</code>（已配置）、<code>running</code>（运行中），三个都显示即为正常。</p>
+<p>Ключевые статусы: <code>enabled</code> (включено), <code>configured</code> (настроено), <code>running</code> (работает). Если все три присутствуют, всё в порядке.</p>
 
-<h2>6. 多 Agent 配置 <span class="optional">（可选）</span></h2>
-<p>如果同一个 Gateway 需要接入多个 WebChat App，可以配置多个 account，并通过 bindings 分别绑定到不同 Agent。</p>
+<h2>6. Настройка нескольких агентов <span class="optional">(необязательно)</span></h2>
+<p>Если один Gateway должен обслуживать несколько WebChat App, можно настроить несколько account и привязать их к разным агентам через bindings.</p>
 <pre>{
   "channels": {
     "openclaw-webchat": {
@@ -170,50 +170,50 @@
   ]
 }</pre>
 
-<h2>7. 常见问题</h2>
+<h2>7. Частые проблемы</h2>
 
-<h3>如何查看通道状态</h3>
+<h3>Как посмотреть статус канала</h3>
 <pre>openclaw channels status --probe</pre>
-<p>正常输出示例：</p>
+<p>Пример корректного вывода:</p>
 <div class="output-sample">WebChat dev-main: enabled, configured, running, dm:open, allow:*<br>WebChat dev-2nd: enabled, configured, running, dm:open, allow:*</div>
-<p><code>enabled</code>（已启用）、<code>configured</code>（已配置）、<code>running</code>（运行中），三个都显示即为正常。</p>
+<p><code>enabled</code> (включено), <code>configured</code> (настроено), <code>running</code> (работает). Все три статуса должны быть на месте.</p>
 
 <h3>not configured</h3>
-<p>通常表示 <code>openclaw.json</code> 中缺少 <code>openclaw-webchat</code> 配置。</p>
+<p>Обычно означает, что в <code>openclaw.json</code> отсутствует конфигурация <code>openclaw-webchat</code>.</p>
 <ul>
-  <li><code>channels.openclaw-webchat.enabled</code> 是否为 <code>true</code></li>
-  <li><code>accounts</code> 中是否存在对应的 account</li>
-  <li>多 Agent 场景：检查 <code>bindings[].match.accountId</code> 是否与 <code>accounts</code> 中的名称一致</li>
+  <li><code>channels.openclaw-webchat.enabled</code> установлено в <code>true</code></li>
+  <li>В <code>accounts</code> присутствует нужный account</li>
+  <li>В сценарии с несколькими агентами проверьте, что <code>bindings[].match.accountId</code> совпадает с именем в <code>accounts</code></li>
 </ul>
 
 <h3>invalid_app</h3>
-<p>通常表示 <code>appId</code> 不存在或填错。</p>
+<p>Обычно означает, что <code>appId</code> не существует или указан неверно.</p>
 <ul>
-  <li><code>appId</code> 是否完整复制</li>
-  <li>当前 <code>appId</code> 是否属于正在使用的 Chat Server</li>
-  <li><code>serverUrl</code> 是否指向正确的 Chat Server</li>
+  <li><code>appId</code> скопирован полностью</li>
+  <li>Текущий <code>appId</code> принадлежит используемому Chat Server</li>
+  <li><code>serverUrl</code> указывает на правильный Chat Server</li>
 </ul>
 
 <h3>invalid_secret</h3>
-<p>通常表示 <code>secret</code> 与 <code>appId</code> 不匹配或填错。</p>
+<p>Обычно означает, что <code>secret</code> не соответствует <code>appId</code> или указан неверно.</p>
 <ul>
-  <li><code>secret</code> 是否完整复制</li>
-  <li><code>secret</code> 是否属于当前 <code>appId</code></li>
-  <li>配置保存后是否已经执行 <code>openclaw gateway restart</code></li>
+  <li><code>secret</code> скопирован полностью</li>
+  <li><code>secret</code> принадлежит текущему <code>appId</code></li>
+  <li>После изменения конфигурации выполнена команда <code>openclaw gateway restart</code></li>
 </ul>
 
 </div>
 <script>
-// 自动填充当前服务器的 WebSocket 地址
+// Автоматически подставляет текущий WebSocket-адрес сервера
 (function() {
   var proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
   var host = window.location.host;
   var wsUrl = proto + '//' + host + '/plugin';
 
-  // 更新顶部提示
+  // Обновить подсказку вверху страницы
   document.getElementById('serverUrlDisplay').textContent = wsUrl;
 
-  // 替换所有代码块中的占位符
+  // Заменить плейсхолдер во всех блоках кода
   var pres = document.querySelectorAll('pre');
   for (var i = 0; i < pres.length; i++) {
     pres[i].innerHTML = pres[i].innerHTML.replace(
@@ -222,7 +222,7 @@
     );
   }
 
-  // 替换表格中的占位符
+  // Заменить плейсхолдер в таблицах, списках и абзацах
   var allEls = document.querySelectorAll('td, li, p');
   for (var i = 0; i < allEls.length; i++) {
     allEls[i].innerHTML = allEls[i].innerHTML.replace(

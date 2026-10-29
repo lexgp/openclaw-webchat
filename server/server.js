@@ -392,12 +392,12 @@ function routeBrowserMessage(ws, message, meta = browserMeta.get(ws)) {
     ? message.messageId
     : createMessageId('user');
 
-  // 幂等：同一 messageId 重复到达时不重复落库，也不重复派发给 Agent
+  // Идемпотентность: повторный messageId не сохраняется в историю и не отправляется агенту повторно
   const existing = findHistoryMessage(meta.userId, appId, messageId);
 
   if (existing) {
     if (existing.from === 'user' && existing.content === content) {
-      // 重放：重新广播同一条规范消息作为确认
+      // Повторная отправка: транслируем то же нормализованное сообщение как подтверждение
       broadcastToUserBrowsers(meta.userId, {
         type: 'message',
         from: 'user',
@@ -434,7 +434,7 @@ function routeBrowserMessage(ws, message, meta = browserMeta.get(ws)) {
     messageId,
   });
 
-  // 同步给该用户的所有浏览器（包含发送端，发送端按 messageId 合并）
+  // Синхронизируем со всеми браузерами пользователя (включая отправителя; отправитель объединяет по messageId)
   broadcastToUserBrowsers(meta.userId, {
     type: 'message',
     from: 'user',
@@ -587,7 +587,7 @@ function broadcastToUserBrowsers(userId, message) {
   return delivered;
 }
 
-// 返回实际写入的规范消息对象；调用方用它统一广播与历史字段
+// Возвращает фактически записанное нормализованное сообщение; вызывающий код использует его для единообразной трансляции и истории
 function appendHistory({ userId, appId, from, content, messageId }) {
   const key = historyKey(userId, appId);
   const messages = messageHistory.get(key) || [];
