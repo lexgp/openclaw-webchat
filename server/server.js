@@ -7,6 +7,7 @@ import crypto from 'node:crypto';
 import { WebSocketServer, WebSocket } from 'ws';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import multer from 'multer';
 
 const PORT = Number(process.env.PORT || 3100);
 const __filename = fileURLToPath(import.meta.url);
@@ -15,6 +16,19 @@ const publicDir = path.join(__dirname, 'public');
 const JWT_SECRET = process.env.ADMIN_JWT_SECRET || crypto.randomBytes(32).toString('hex');
 const APPS_FILE = path.join(__dirname, 'apps.json');
 const MESSAGES_LOG_FILE = path.join(__dirname, 'messages.ndjson');
+const UPLOADS_DIR = path.join(publicDir, 'uploads');
+const MAX_FILE_SIZE = 10 * 1024 * 1024;
+
+const ALLOWED_MIME_TYPES = new Set([
+  // 'image/jpeg',
+  // 'image/png',
+  // 'image/gif',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/pdf',
+]);
+
+const ALLOWED_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.gif', '.xlsx', '.docx', '.pdf']);
 
 const browsers = new Map();
 const browserMeta = new WeakMap();
@@ -24,6 +38,32 @@ const appRegistry = new Map();
 const messageHistory = new Map();
 const heartbeatMeta = new WeakMap();
 const HISTORY_LIMIT = 100;
+
+if (!fs.existsSync(UPLOADS_DIR)) {
+  fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+}
+
+const uploadStorage = multer.diskStorage({
+  destination: (_req, _file, cb) => cb(null, UPLOADS_DIR),
+  filename: (_req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase() || '';
+    const base = `${Date.now()}_${crypto.randomBytes(8).toString('hex')}`;
+    cb(null, `${base}${ext}`);
+  },
+});
+
+const upload = multer({
+  storage: uploadStorage,
+  limits: { fileSize: MAX_FILE_SIZE },
+  fileFilter: (_req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase();
+    if (ALLOWED_MIME_TYPES.has(file.mimetype) && ALLOWED_EXTENSIONS.has(ext)) {
+      cb(null, true);
+    } else {
+      cb(new Error('unsupported_file_type'), false);
+    }
+  },
+});
 
 const contentTypes = {
   '.html': 'text/html; charset=utf-8',
@@ -46,6 +86,12 @@ const server = http.createServer((req, res) => {
   // Admin API routes
   if (url.pathname.startsWith('/api/admin/')) {
     handleAdminRoute(url, req, res);
+    return;
+  }
+
+  // File upload endpoint for chat users
+  if (url.pathname === '/api/upload' && req.method === 'POST') {
+    handleFileUpload(req, res);
     return;
   }
 
@@ -124,13 +170,17 @@ function loadMessageHistory() {
 
       const key = historyKey(msg.userId, msg.appId);
       const messages = messageHistory.get(key) || [];
-      messages.push({
+      const stored = {
         from: msg.from,
         appId: msg.appId,
         content: msg.content,
         timestamp: msg.timestamp,
         messageId: msg.messageId,
-      });
+      };
+      if (msg.file) {
+        stored.file = msg.file;
+      }
+      messages.push(stored);
 
       if (messages.length > HISTORY_LIMIT) {
         messages.splice(0, messages.length - HISTORY_LIMIT);
@@ -151,6 +201,16 @@ function isValidHistoryMessage(msg) {
     && typeof msg.content === 'string'
     && typeof msg.timestamp === 'number'
     && typeof msg.messageId === 'string';
+}
+
+function isValidFileAttachment(file) {
+  return file
+    && typeof file === 'object'
+    && typeof file.url === 'string'
+    && file.url.startsWith('/uploads/')
+    && typeof file.originalName === 'string'
+    && typeof file.mimeType === 'string'
+    && typeof file.size === 'number';
 }
 
 function persistMessage(msg) {
@@ -281,6 +341,41 @@ function serveStatic(pathname, res) {
   }
 }
 
+function handleFileUpload(req, res) {
+  upload.single('file')(req, res, (err) => {
+    if (err) {
+      if (err.code === 'LIMIT_FILE_SIZE') {
+        return sendJson(res, 413, { ok: false, error: 'file_too_large' });
+      }
+      if (err.message === 'unsupported_file_type') {
+        return sendJson(res, 415, { ok: false, error: 'unsupported_file_type' });
+      }
+      console.error('upload error:', err);
+      return sendJson(res, 500, { ok: false, error: 'upload_failed' });
+    }
+
+    if (!req.file) {
+      return sendJson(res, 400, { ok: false, error: 'file_required' });
+    }
+
+    return sendJson(res, 200, {
+      ok: true,
+      file: {
+        url: `/uploads/${req.file.filename}`,
+        originalName: req.file.originalname,
+        mimeType: req.file.mimetype,
+        size: req.file.size,
+      },
+    });
+  });
+}
+
+function formatBytes(bytes) {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 function registerBrowser(ws, message) {
   console.log("registering browser:", message.userId);
   const userId = typeof message.userId === 'string' && message.userId.trim() ? message.userId : null;
@@ -382,6 +477,7 @@ function routeBrowserMessage(ws, message, meta = browserMeta.get(ws)) {
 
   const appId = typeof message.appId === 'string' && message.appId.trim() ? message.appId : null;
   const content = typeof message.content === 'string' ? message.content : null;
+  const file = isValidFileAttachment(message.file) ? message.file : null;
 
   if (!appId || content === null) {
     send(ws, { type: 'error', error: 'appId and content are required' });
@@ -406,6 +502,7 @@ function routeBrowserMessage(ws, message, meta = browserMeta.get(ws)) {
         messageId: existing.messageId,
         timestamp: existing.timestamp,
         clientId: meta.clientId,
+        file: existing.file || undefined,
       });
       return;
     }
@@ -432,6 +529,7 @@ function routeBrowserMessage(ws, message, meta = browserMeta.get(ws)) {
     from: 'user',
     content,
     messageId,
+    file,
   });
 
   // Синхронизируем со всеми браузерами пользователя (включая отправителя; отправитель объединяет по messageId)
@@ -443,6 +541,7 @@ function routeBrowserMessage(ws, message, meta = browserMeta.get(ws)) {
     messageId: saved.messageId,
     timestamp: saved.timestamp,
     clientId: meta.clientId,
+    file: saved.file || undefined,
   });
 
   send(plugin.ws, {
@@ -588,7 +687,7 @@ function broadcastToUserBrowsers(userId, message) {
 }
 
 // Возвращает фактически записанное нормализованное сообщение; вызывающий код использует его для единообразной трансляции и истории
-function appendHistory({ userId, appId, from, content, messageId }) {
+function appendHistory({ userId, appId, from, content, messageId, file }) {
   const key = historyKey(userId, appId);
   const messages = messageHistory.get(key) || [];
   const timestamp = Date.now();
@@ -599,15 +698,20 @@ function appendHistory({ userId, appId, from, content, messageId }) {
     content,
     timestamp,
     messageId,
+    file: file || undefined,
   };
 
-  messages.push({
+  const storedMsg = {
     from: newMsg.from,
     appId: newMsg.appId,
     content: newMsg.content,
     timestamp: newMsg.timestamp,
     messageId: newMsg.messageId,
-  });
+  };
+  if (newMsg.file) {
+    storedMsg.file = newMsg.file;
+  }
+  messages.push(storedMsg);
 
   if (messages.length > HISTORY_LIMIT) {
     messages.splice(0, messages.length - HISTORY_LIMIT);

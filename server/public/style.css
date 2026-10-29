@@ -543,3 +543,129 @@ button:active {
 .message-bubble th {
   background: #f5f5f7;
 }
+
+/* File upload UI */
+#file-btn {
+  flex: 0 0 auto;
+  width: 40px;
+  height: 40px;
+  margin-right: 8px;
+  background: #f7f8fb;
+  border: 1px solid #d7dce5;
+  border-radius: 50%;
+  color: #4f63d7;
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s ease, opacity 0.15s ease;
+}
+
+#file-btn:hover {
+  background: #eef1ff;
+}
+
+#file-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+#message-input:disabled {
+  background: #f5f5f5;
+  cursor: not-allowed;
+}
+
+.attachment-preview {
+  display: none;
+  padding: 8px 16px;
+  background: #f9f9fb;
+  border-top: 1px solid #e0e0e0;
+}
+
+.attachment-preview.active {
+  display: block;
+}
+
+.attachment-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  background: #e6e8f0;
+  border-radius: 16px;
+  font-size: 13px;
+  color: #333;
+}
+
+.attachment-name {
+  font-weight: 500;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.attachment-size {
+  color: #777;
+  font-size: 12px;
+}
+
+.attachment-remove {
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  background: #fff;
+  border: 1px solid #d7dce5;
+  border-radius: 50%;
+  color: #666;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.attachment-remove:hover {
+  background: #ff4444;
+  color: #fff;
+  border-color: #ff4444;
+}
+
+/* File rendering inside messages */
+.file-message-text {
+  margin-bottom: 8px;
+}
+
+.file-attachment {
+  margin-top: 4px;
+}
+
+.file-image-preview {
+  max-width: 260px;
+  max-height: 220px;
+  border-radius: 12px;
+  display: block;
+  cursor: pointer;
+}
+
+.file-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #667eea;
+  text-decoration: none;
+  font-weight: 500;
+  word-break: break-all;
+}
+
+.file-link:hover {
+  text-decoration: underline;
+}
+
+.message.user .file-link {
+  color: #fff;
+  text-decoration: underline;
+}

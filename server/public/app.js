@@ -14,6 +14,9 @@ const state = {
   intentionallyClosed: false,
 };
 
+let pendingFile = null;
+let isUploading = false;
+
 const LAST_USER_ID_STORAGE_KEY = 'webchat.lastUserId';
 
 const md = window.markdownit({
@@ -122,6 +125,7 @@ function handleServerMessage(data) {
       messageId: typeof data.messageId === 'string' ? data.messageId : null,
       role,
       content: data.content,
+      file: data.file || null,
       timestamp: typeof data.timestamp === 'number' ? data.timestamp : Date.now(),
       status: 'sent',
       clientId: data.clientId,
@@ -156,6 +160,7 @@ function handleServerMessage(data) {
           messageId: typeof message.messageId === 'string' ? message.messageId : null,
           role: message.from === 'user' || message.role === 'user' ? 'user' : 'agent',
           content: message.content,
+          file: message.file || null,
           timestamp: typeof message.timestamp === 'number' ? message.timestamp : Date.now(),
           status: 'sent',
           clientId: null,
@@ -293,6 +298,8 @@ function renderMessages() {
     bubble.className = 'message-bubble';
     if (message.role === 'agent') {
       bubble.innerHTML = md.render(message.content);
+    } else if (message.file) {
+      renderUserFileBubble(bubble, message.content, message.file);
     } else {
       bubble.textContent = message.content;
     }
@@ -318,6 +325,7 @@ function upsertMessage(appId, message, options = {}) {
   if (existing) {
     existing.role = message.role || existing.role;
     if (typeof message.content === 'string') existing.content = message.content;
+    if (message.file !== undefined) existing.file = message.file || null;
     if (typeof message.timestamp === 'number') existing.timestamp = message.timestamp;
     existing.status = message.status || existing.status;
     if (message.clientId) existing.clientId = message.clientId;
@@ -332,6 +340,7 @@ function upsertMessage(appId, message, options = {}) {
     messageId,
     role: message.role,
     content: message.content,
+    file: message.file || null,
     timestamp: typeof message.timestamp === 'number' ? message.timestamp : Date.now(),
     status: message.status || 'sent',
     clientId: message.clientId || null,
@@ -467,19 +476,28 @@ function clearTypingTimers(typing) {
 }
 
 function sendMessage() {
+  if (isUploading) return;
+
   const input = document.getElementById('message-input');
   const text = input.value.trim();
-  if (!text || !state.activeAppId) return;
+  const file = pendingFile;
 
-  input.value = '';
+  if ((!text && !file) || !state.activeAppId) return;
+
   const appId = state.activeAppId;
   const messageId = createMessageId();
+  const fileLink = file ? `[${file.originalName}](${file.url})` : '';
+  const content = text && file ? `${text}\n\n${fileLink}` : text || fileLink;
+
+  input.value = '';
+  clearAttachment();
 
   if (!state.ws || state.ws.readyState !== WebSocket.OPEN) {
     upsertMessage(appId, {
       messageId,
       role: 'user',
-      content: text,
+      content,
+      file,
       timestamp: Date.now(),
       status: 'failed',
     }, { countUnread: false });
@@ -490,7 +508,8 @@ function sendMessage() {
   upsertMessage(appId, {
     messageId,
     role: 'user',
-    content: text,
+    content,
+    file,
     timestamp: Date.now(),
     status: 'pending',
   }, { countUnread: false });
@@ -499,7 +518,8 @@ function sendMessage() {
   state.ws.send(JSON.stringify({
     type: 'message',
     appId,
-    content: text,
+    content,
+    file,
     messageId,
     clientId: state.clientId,
   }));
@@ -556,6 +576,7 @@ function resetState() {
   state.reconnectDelay = 3000;
   document.getElementById('username-input').value = '';
   document.getElementById('message-input').value = '';
+  clearAttachment();
 }
 
 function clearReconnectTimer() {
@@ -603,6 +624,169 @@ async function websocketMessageToText(data) {
   if (data instanceof ArrayBuffer) return new TextDecoder().decode(data);
   if (ArrayBuffer.isView(data)) return new TextDecoder().decode(data);
   return String(data);
+}
+
+function formatBytes(bytes) {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function isImageMime(mimeType) {
+  return typeof mimeType === 'string' && mimeType.startsWith('image/');
+}
+
+function renderUserFileBubble(bubble, content, file) {
+  bubble.innerHTML = '';
+
+  if (content && content !== `[${file.originalName}](${file.url})`) {
+    const text = document.createElement('div');
+    text.className = 'file-message-text';
+    text.textContent = content.replace(`\n\n[${file.originalName}](${file.url})`, '').trim();
+    if (text.textContent) {
+      bubble.appendChild(text);
+    }
+  }
+
+  const attachment = document.createElement('div');
+  attachment.className = 'file-attachment';
+
+  if (isImageMime(file.mimeType)) {
+    const img = document.createElement('img');
+    img.src = file.url;
+    img.alt = file.originalName;
+    img.className = 'file-image-preview';
+    attachment.appendChild(img);
+  } else {
+    const link = document.createElement('a');
+    link.href = file.url;
+    link.target = '_blank';
+    link.rel = 'noopener noreferrer';
+    link.className = 'file-link';
+    link.textContent = `📎 ${file.originalName} (${formatBytes(file.size)})`;
+    attachment.appendChild(link);
+  }
+
+  bubble.appendChild(attachment);
+}
+
+function renderAttachmentPreview() {
+  const container = document.getElementById('attachment-preview');
+  if (!container) return;
+  container.innerHTML = '';
+
+  if (!pendingFile) {
+    container.classList.remove('active');
+    return;
+  }
+
+  const preview = document.createElement('div');
+  preview.className = 'attachment-chip';
+
+  const name = document.createElement('span');
+  name.className = 'attachment-name';
+  name.textContent = pendingFile.originalName;
+
+  const size = document.createElement('span');
+  size.className = 'attachment-size';
+  size.textContent = formatBytes(pendingFile.size);
+
+  const remove = document.createElement('button');
+  remove.type = 'button';
+  remove.className = 'attachment-remove';
+  remove.textContent = '×';
+  remove.addEventListener('click', clearAttachment);
+
+  preview.append(name, size, remove);
+  container.appendChild(preview);
+  container.classList.add('active');
+}
+
+function clearAttachment() {
+  pendingFile = null;
+  const input = document.getElementById('file-input');
+  if (input) input.value = '';
+  renderAttachmentPreview();
+  updateInputDisabled();
+}
+
+function updateInputDisabled() {
+  const input = document.getElementById('message-input');
+  const sendBtn = document.getElementById('send-btn');
+  const fileBtn = document.getElementById('file-btn');
+  const disabled = isUploading;
+  if (input) input.disabled = disabled;
+  if (sendBtn) sendBtn.disabled = disabled;
+  if (fileBtn) fileBtn.disabled = disabled;
+}
+
+async function uploadFile(file) {
+  const formData = new FormData();
+  formData.append('file', file);
+
+  const response = await fetch('/api/upload', {
+    method: 'POST',
+    body: formData,
+  });
+
+  if (!response.ok) {
+    let message = 'Не удалось загрузить файл';
+    try {
+      const data = await response.json();
+      if (data.error === 'file_too_large') message = 'Файл слишком большой (максимум 10 МБ)';
+      else if (data.error === 'unsupported_file_type') message = 'Неподдерживаемый тип файла';
+    } catch {}
+    throw new Error(message);
+  }
+
+  const data = await response.json();
+  return data.file;
+}
+
+async function onFileSelected(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  const allowedTypes = [
+    'image/jpeg',
+    'image/png',
+    'image/gif',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'application/pdf',
+  ];
+  const allowedExts = ['.jpg', '.jpeg', '.png', '.gif', '.xlsx', '.docx', '.pdf'];
+  const ext = file.name.slice(file.name.lastIndexOf('.')).toLowerCase();
+
+  if (!allowedTypes.includes(file.type) || !allowedExts.includes(ext)) {
+    window.alert('Неподдерживаемый тип файла. Разрешены: jpg, png, gif, xlsx, docx, pdf');
+    event.target.value = '';
+    return;
+  }
+
+  if (file.size > 10 * 1024 * 1024) {
+    window.alert('Файл слишком большой. Максимум 10 МБ.');
+    event.target.value = '';
+    return;
+  }
+
+  isUploading = true;
+  updateInputDisabled();
+
+  try {
+    const uploaded = await uploadFile(file);
+    pendingFile = uploaded;
+    renderAttachmentPreview();
+    document.getElementById('message-input').focus();
+  } catch (error) {
+    console.error('file upload error:', error);
+    window.alert(error.message);
+    clearAttachment();
+  } finally {
+    isUploading = false;
+    updateInputDisabled();
+    event.target.value = '';
+  }
 }
 
 function saveLastUserId(userId) {
@@ -659,6 +843,12 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   document.getElementById('send-btn').addEventListener('click', sendMessage);
+
+  document.getElementById('file-btn').addEventListener('click', () => {
+    document.getElementById('file-input').click();
+  });
+
+  document.getElementById('file-input').addEventListener('change', onFileSelected);
 
   document.getElementById('message-input').addEventListener('keydown', (event) => {
     if (event.key === 'Enter' && !event.isComposing) {
