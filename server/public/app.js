@@ -308,7 +308,28 @@ function renderMessages() {
     time.className = 'message-time';
     time.textContent = formatTime(message.timestamp);
 
-    content.append(bubble, time);
+    if (message.role === 'agent') {
+      const actions = document.createElement('div');
+      actions.className = 'message-actions';
+
+      const copyBtn = document.createElement('button');
+      copyBtn.type = 'button';
+      copyBtn.className = 'copy-btn';
+      copyBtn.title = 'Копировать Markdown';
+      copyBtn.setAttribute('aria-label', 'Копировать Markdown');
+      copyBtn.textContent = '📋';
+      copyBtn.addEventListener('click', () => copyToClipboard(message.content, copyBtn));
+
+      actions.appendChild(copyBtn);
+
+      const meta = document.createElement('div');
+      meta.className = 'message-meta';
+      meta.append(time, actions);
+      content.append(bubble, meta);
+    } else {
+      content.append(bubble, time);
+    }
+
     row.appendChild(content);
     list.appendChild(row);
   });
@@ -618,6 +639,34 @@ function formatTime(timestamp) {
     hour: '2-digit',
     minute: '2-digit',
   });
+}
+
+async function copyToClipboard(text, button) {
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      await navigator.clipboard.writeText(text);
+    } else {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.setAttribute('readonly', '');
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+    }
+
+    const original = button.textContent;
+    button.textContent = '✓';
+    button.classList.add('copied');
+    window.setTimeout(() => {
+      button.textContent = original;
+      button.classList.remove('copied');
+    }, 1500);
+  } catch (error) {
+    console.error('failed to copy:', error);
+  }
 }
 
 function scrollMessagesToBottom() {
