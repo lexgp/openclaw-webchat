@@ -385,7 +385,7 @@ function addTypingIndicator(appId) {
     }, 150),
     timeoutTimer: window.setTimeout(() => {
       showTypingError(appId, 'Превышено время ожидания ответа');
-    }, 120000),
+    }, 300000),
   };
 
   state.typing[appId] = typing;
@@ -754,12 +754,13 @@ async function onFileSelected(event) {
     'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     'application/pdf',
+    'application/zip',
   ];
-  const allowedExts = ['.jpg', '.jpeg', '.png', '.gif', '.xlsx', '.docx', '.pdf'];
+  const allowedExts = ['.jpg', '.jpeg', '.png', '.gif', '.xlsx', '.docx', '.pdf', '.zip'];
   const ext = file.name.slice(file.name.lastIndexOf('.')).toLowerCase();
 
   if (!allowedTypes.includes(file.type) || !allowedExts.includes(ext)) {
-    window.alert('Неподдерживаемый тип файла. Разрешены: jpg, png, gif, xlsx, docx, pdf');
+    window.alert('Неподдерживаемый тип файла. Разрешены: jpg, png, gif, xlsx, docx, pdf, zip. Пришло: ' + ext);
     event.target.value = '';
     return;
   }

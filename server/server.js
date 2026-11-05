@@ -20,15 +20,16 @@ const UPLOADS_DIR = path.join(publicDir, 'uploads');
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
 
 const ALLOWED_MIME_TYPES = new Set([
-  // 'image/jpeg',
-  // 'image/png',
-  // 'image/gif',
+  'image/jpeg',
+  'image/png',
+  'image/gif',
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   'application/pdf',
+  'application/zip',
 ]);
 
-const ALLOWED_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.gif', '.xlsx', '.docx', '.pdf']);
+const ALLOWED_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.gif', '.xlsx', '.docx', '.pdf', '.zip']);
 
 const browsers = new Map();
 const browserMeta = new WeakMap();
@@ -46,7 +47,8 @@ if (!fs.existsSync(UPLOADS_DIR)) {
 const uploadStorage = multer.diskStorage({
   destination: (_req, _file, cb) => cb(null, UPLOADS_DIR),
   filename: (_req, file, cb) => {
-    const ext = path.extname(file.originalname).toLowerCase() || '';
+    const originalName = decodeMultipartFilename(file.originalname);
+    const ext = path.extname(originalName).toLowerCase() || '';
     const base = `${Date.now()}_${crypto.randomBytes(8).toString('hex')}`;
     cb(null, `${base}${ext}`);
   },
@@ -78,6 +80,7 @@ const contentTypes = {
   '.svg': 'image/svg+xml; charset=utf-8',
   '.ico': 'image/x-icon',
   '.txt': 'text/plain; charset=utf-8',
+  '.zip': 'application/zip',
 };
 
 const server = http.createServer((req, res) => {
@@ -362,7 +365,7 @@ function handleFileUpload(req, res) {
       ok: true,
       file: {
         url: `/uploads/${req.file.filename}`,
-        originalName: req.file.originalname,
+        originalName: decodeMultipartFilename(req.file.originalname),
         mimeType: req.file.mimetype,
         size: req.file.size,
       },
@@ -374,6 +377,17 @@ function formatBytes(bytes) {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function decodeMultipartFilename(name) {
+  // Multer/busboy decodes multipart filenames as latin1 by default.
+  // Re-encode as latin1 and decode as utf-8 to recover the original UTF-8 name.
+  if (typeof name !== 'string') return '';
+  try {
+    return Buffer.from(name, 'latin1').toString('utf8');
+  } catch {
+    return name;
+  }
 }
 
 function registerBrowser(ws, message) {
