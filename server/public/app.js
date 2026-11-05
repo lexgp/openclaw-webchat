@@ -475,6 +475,14 @@ function clearTypingTimers(typing) {
   }
 }
 
+function adjustInputHeight() {
+  const input = document.getElementById('message-input');
+  if (!input) return;
+  input.style.height = 'auto';
+  const maxHeight = 150;
+  input.style.height = `${Math.min(input.scrollHeight, maxHeight)}px`;
+}
+
 function sendMessage() {
   if (isUploading) return;
 
@@ -491,6 +499,7 @@ function sendMessage() {
 
   input.value = '';
   clearAttachment();
+  adjustInputHeight();
 
   if (!state.ws || state.ws.readyState !== WebSocket.OPEN) {
     upsertMessage(appId, {
@@ -852,10 +861,24 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('file-input').addEventListener('change', onFileSelected);
 
   document.getElementById('message-input').addEventListener('keydown', (event) => {
-    if (event.key === 'Enter' && !event.isComposing) {
-      sendMessage();
+    if (event.key !== 'Enter' || event.isComposing) return;
+
+    const input = event.target;
+    if (event.shiftKey || event.ctrlKey || event.metaKey || event.altKey) {
+      event.preventDefault();
+      const start = input.selectionStart;
+      const end = input.selectionEnd;
+      input.value = input.value.slice(0, start) + '\n' + input.value.slice(end);
+      input.selectionStart = input.selectionEnd = start + 1;
+      adjustInputHeight();
+      return;
     }
+
+    event.preventDefault();
+    sendMessage();
   });
+
+  document.getElementById('message-input').addEventListener('input', adjustInputHeight);
 
   document.getElementById('back-btn').addEventListener('click', () => {
     renderAgentList();
